@@ -1,0 +1,23 @@
+Metadata-Version: 2.4
+Name: fedchem
+Version: 0.1.1
+Summary: Federated Chemometrics: Calibration Transfer with Privacy & Conformal Prediction
+Author: TBD
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: numpy>=1.24
+Requires-Dist: scipy>=1.10
+Requires-Dist: scikit-learn>=1.2
+Requires-Dist: pandas>=2.0
+Requires-Dist: pydantic>=2.0
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: pyDOE2>=0.7.3
+Requires-Dist: openpyxl>=3.1
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: mypy>=1.5; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: jsonschema>=4.18; extra == "dev"
+Dynamic: license-file

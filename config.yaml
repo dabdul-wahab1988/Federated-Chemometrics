@@ -1,0 +1,227 @@
+# Configuration file for the fedchem project.
+# OPTIMIZED FOR: IDRC 2016 "Path B" (Representative Sites + 3 Transfer Levels)
+
+# ----------------
+# Dataset selection
+# ----------------
+USE_TECATOR: false
+# Restricted to 2 sites (Representative Pair: MA_A2 and MB_B2)
+NUM_SITES: 2
+
+# Data Configuration per Manufacturer
+DATA_CONFIG:
+  ManufacturerA:
+    cal_instruments: 3
+    val_instruments: 1
+    test_instruments: 1
+    enabled: true
+  ManufacturerB:
+    cal_instruments: 3
+    val_instruments: 1
+    test_instruments: 1
+    enabled: true
+
+# Per-instrument sample split defaults
+PER_INSTRUMENT_SPLIT:
+  train_frac: 0.6
+  cal_frac: 0.2
+  test_frac: 0.2
+  min_samples_for_calibration: 20
+
+# Instrument-as-Site Configuration
+# Explicitly listing the representative instruments for clarity
+INSTRUMENT_AS_SITE: true
+INSTRUMENTS:
+  ManufacturerA:
+    - id: "MA_A2"   # << Representative Site A
+      role: "cal"
+      enabled: true
+    - id: "MA_A1"   # Available but not in EXPERIMENTAL_DESIGN
+      role: "cal"
+      enabled: true
+    - id: "MA_A3"
+      role: "val"
+      enabled: true
+  ManufacturerB:
+    - id: "MB_B2"   # << Representative Site B
+      role: "cal"
+      enabled: true
+    - id: "MB_B1"   # Available but not in EXPERIMENTAL_DESIGN
+      role: "cal"
+      enabled: true
+    - id: "MB_B3"
+      role: "val"
+      enabled: true
+
+# ---------------------------
+# Federated learning settings
+# ---------------------------
+ROUNDS: 10
+PARTICIPATION_RATE: null
+# Schedules fixed for consistency
+PARTICIPATION_SCHEDULE: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+COMPRESSION_SCHEDULE: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+VALIDATE_SCHEDULE_LENGTHS: true
+
+# ------------------
+# Differential privacy
+# ------------------
+# Default settings (overridden by EXPERIMENTAL_DESIGN loop)
+DP_TARGET_EPS: 2.0
+DP_DELTA: 1e-5
+CLIP_NORM: null
+
+DIFFERENTIAL_PRIVACY:
+  accountant: "gaussian"
+  sampling: "uniform"
+  noise_multiplier_map:
+    "inf": 0.0
+    "10.0": 1.0
+    "1.0": 2.5
+    "0.1": 5.0
+  clip_norm_default: 1.0
+  enable_per_layer_clipping: false
+
+# ----------------------
+# Performance & shortcuts
+# ----------------------
+QUICK: 1
+MAX_TRANSFER_SAMPLES: 200
+
+# Visualization and Output
+OUTPUT_DIR: "generated_figures_tables"
+DEFAULT_N_WAVELENGTHS: 128
+RESAMPLE_SPECTRA: true
+RESAMPLE_METHOD: "interpolate"
+
+USE_FEDPLS: 1
+FEDPLS_METHOD: "parametric"
+PIPELINE:
+  model: "PLSModel"
+  x_scaler: null
+  y_scaler: null
+
+# ---------------------------
+# Experimental design helpers
+# ---------------------------
+EXPERIMENTAL_DESIGN:
+  DESIGN_TYPE: "fractional_factorial"
+
+  FACTORS:
+    # --- VARIABLE FACTORS (The 24 Combinations) ---
+    
+    # 1. Privacy: Full range to plot the trade-off curve
+    DP_Target_Eps: ["inf", 0.1, 1.0, 10.0]
+
+    # 2. Transfer Samples: 3 levels (Low, Med, High) to see data utility curve
+    Transfer_Samples: [20, 80, 200]
+
+    # 3. Site: The Representative Pair (Manufacturer A vs B)
+    Site: ["MA_A2", "MB_B2"]
+
+    # --- CONSTANT FACTORS (Fixed to single best choices) ---
+    
+    # Baselines to run alongside (necessary for paper comparison)
+    Baseline: ["none"] #["centralized", "site_specific", "classical_CT_PDS"]
+
+    # Federated Method: Fixed to FedAvg (most standard). 
+    # Add "FedPLS_parametric" here if you need to compare algos (will double runs).
+    Federated_Method: ["FedAvg"]
+
+    # Secure Aggregation: Always On for production
+    Use_Secure_Aggregation: [true]
+
+    # CT Variant: Best performing default
+    CT_Federated_Variant: ["global_calibrate_after_fed"]
+
+    # Fixed Hyperparameters
+    Rounds: [10]
+    Local_Epochs: [1]
+    Local_Batch_Size: [16]
+    Learning_Rate: [0.005]
+    CT_PDS_N_COMPONENTS: [2]
+    CT_SBC_WINDOW: [3]
+    CT_DTW_WINDOW: [10]
+    Clip_Norm: [1.0]
+    DP_Delta: [1e-5]
+
+    # Conformal: Split is faster and sufficient for 95% targets
+    Conformal_Method: ["split"]
+    Conformal_Targets: [0.95]
+    Conformal_Calibration: ["per_site"]
+
+    # Drift: Fixed scenario
+    Spectral_Drift: ["moderate"]
+    Drift_Type: ["jitter"]
+    Holdout_Strategy: ["random_split"]
+    EVAL_HELDOUT_SITES: ["all"]
+
+    # Schedules: Fixed
+    Participation_Schedule:
+      - "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0"
+    Compression_Schedule:
+      - "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0"
+
+  # Metrics to track
+  METRICS: ["RMSEP", "R2", "Coverage", "Avg_Pred_Set_Size", "Bytes_Sent", "Round_Time"]
+
+  # Seeds: 3 seeds for publication statistics (approx 72 federated runs total)
+  SEEDS: [42, 43, 44]
+
+  RUNS_PER_COMBO: 1
+  CUSTOM_FILE: "custom_design.json"
+
+# -------------------------------
+# Supported PIPELINE.model values
+# -------------------------------
+SUPPORTED_PIPELINE_MODELS:
+  LinearModel: "fedchem.models.linear.LinearModel"
+  PLSModel: "fedchem.models.pls.PLSModel"
+  ParametricPLSModel: "fedchem.models.parametric_pls.ParametricPLSModel"
+
+# -----------------------------------------------------------------------------
+# Conformal configuration
+# -----------------------------------------------------------------------------
+# Add this to your Experimental Design Phase 3
+CONFORMAL: 
+  method: null #"split"              # Arm 2 (Naïve CP)
+  calibration_fraction: 0.4    # The split for D_cal
+  nonconformity_score: "abs_residual"
+  target_coverages: [0.90, 0.95]
+  per_site_or_pooled: "pooled" # Crucial: Are we learning one Q for everyone, or one per site?
+
+# -----------------------------------------------------------------------------
+# Secure aggregation
+# -----------------------------------------------------------------------------
+SECURE_AGGREGATION:
+  enabled: true
+  scheme: "threshold"
+  threshold_k: 2
+  key_size_bits: 2048
+  require_bytes_log: true
+  compression_bits_per_value: 8
+
+# -----------------------------------------------------------------------------
+# Drift augmentation
+# -----------------------------------------------------------------------------
+DRIFT_AUGMENT:
+  apply_augmentation_during_training: true
+  apply_test_shifts: true
+  jitter_wavelength_px: 0.01
+  multiplicative_scatter: 0.05
+  baseline_offset: 0.005
+  white_noise_sigma: 0.005
+  augmentation_seed: 99
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+REPRODUCIBILITY:
+  run_seeds: [42]
+  git_commit: null
+  manifest_fields: ["config", "git_commit", "python_packages", "DIFFERENTIAL_PRIVACY"]
+  export_lca_artifacts: true
+  lca_artifact_dir: "generated_figures_tables/lca_artifacts"
+  log_level: "INFO"
+  log_weight_snapshots: true
+  log_weight_snapshot_interval: 10

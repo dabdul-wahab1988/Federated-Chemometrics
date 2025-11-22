@@ -1,0 +1,2 @@
+[console_scripts]
+spec-lint = fedchem.scripts.spec_lint:main

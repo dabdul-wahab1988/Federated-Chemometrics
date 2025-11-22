@@ -1,0 +1,409 @@
+# Configuration file for the fedchem project.
+#
+# This file is intentionally user-friendly: most settings can be provided
+# here instead of as environment variables. `scripts/run_all_objectives.py`
+# prefers values in this file and will seed environment variables from it
+# when launching generators. Environment variables still override where
+# appropriate (useful for CI or per-run tweaks).
+
+# ----------------
+# Dataset selection
+# ----------------
+# Set USE_TECATOR= true to force the Tecator fallback dataset. Otherwise
+# the scripts attempt to use the persistent multi-site IDRC data when
+# available under `data/ManufacturerA`, `data/ManufacturerB`, etc.
+USE_TECATOR: false
+# Number of federated sites/clients used by default. Many scripts will
+# accept an environment variable `FEDCHEM_NUM_SITES` to override per-run.
+NUM_SITES: 6
+
+# Data Configuration per Manufacturer
+# This section defines per-site instrument limits and metadata.
+# Site codes (keys) should match those in `EXPERIMENTAL_DESIGN.FACTORS.Site`.
+DATA_CONFIG:
+  ManufacturerA:
+    cal_instruments: 3      # Max calibration instruments to load
+    val_instruments: 1      # Max validation instruments to load
+    test_instruments: 1     # Max test instruments to load
+    enabled: true           # Whether this site is available for experiments
+  ManufacturerB:
+    cal_instruments: 3
+    val_instruments: 1
+    test_instruments: 1
+    enabled: true
+
+# Per-instrument sample split defaults used when explicit splits are not provided
+PER_INSTRUMENT_SPLIT:
+  train_frac: 0.6
+  cal_frac: 0.2
+  test_frac: 0.2
+  min_samples_for_calibration: 20
+
+# SITE CONFIGURATION BEST PRACTICES:
+# 1. Define available sites in EXPERIMENTAL_DESIGN.FACTORS.Site (canonical list)
+# 2. Provide per-site instrument limits in DATA_CONFIG above
+# 3. Set `enabled: false` to temporarily disable a site without removing config
+# 4. All sites in EXPERIMENTAL_DESIGN.FACTORS.Site MUST have DATA_CONFIG entries
+
+# Optional: Treat each instrument as an independent site (instrument-as-site).
+# - Set `INSTRUMENT_AS_SITE: true` to indicate that instruments should be used as
+#   independent federated clients. When set, you should declare instruments
+#   explicitly in the `INSTRUMENTS` map below or provide an `INSTRUMENT_MAP`.
+# - This enables instrument-level LOSO runs and more realistic privacy/participation
+#   studies, but it requires each instrument to be listed and metadata present.
+INSTRUMENT_AS_SITE: true
+INSTRUMENTS:
+  # Example mapping (manufacturer -> list of instruments and roles)
+  ManufacturerA:
+    - id: "MA_A1"
+      role: "cal"
+      enabled: true
+    - id: "MA_A2"
+      role: "cal"
+      enabled: true
+    - id: "MA_A3"
+      role: "val"
+      enabled: true
+  ManufacturerB:
+    - id: "MB_B1"
+      role: "cal"
+      enabled: true
+    - id: "MB_B2"
+      role: "cal"
+      enabled: true
+    - id: "MB_B3"
+      role: "val"
+      enabled: true
+
+# ---------------------------
+# Federated learning settings
+# ---------------------------
+# `ROUNDS` - number of federated rounds to run (default used by scripts)
+ROUNDS: 10
+# `PARTICIPATION_RATE` - if set to a number in (0,1), all rounds will use
+# that fixed participation rate. If left null, the schedule(s) below or
+# env var `FEDCHEM_PARTICIPATION_SCHEDULE` may be used instead.
+PARTICIPATION_RATE: null
+# `PARTICIPATION_SCHEDULE` supports one or more schedules. Each entry may
+# be either a YAML list of numbers or a comma-separated string like
+# "1.0,0.8,0.6". The scripts accept both formats; when multiple schedules
+# are provided, generators often pick the first by default for a run.
+PARTICIPATION_SCHEDULE: [1.0, 1.0, 0.9, 0.8, 0.8, 0.7, 0.7, 0.6, 0.6, 0.5]
+# Compression schedule works the same way as participation (per-round ratio)
+COMPRESSION_SCHEDULE: [1.0, 0.8, 0.8, 0.6, 0.6, 0.6, 0.5, 0.5, 0.5, 0.5]
+
+# Safety checks: validate schedule lengths against ROUNDS to avoid silent truncation
+VALIDATE_SCHEDULE_LENGTHS: true
+
+# ------------------
+# Differential privacy
+# ------------------
+# `DP_TARGET_EPS` and `DP_DELTA` set the target privacy budget used by
+# DP planners. Values may be overridden by env vars (e.g. FEDCHEM_DP_TARGET_EPS).
+DP_TARGET_EPS: 2.0
+DP_DELTA: 1e-5
+# `CLIP_NORM` controls per-update clipping; set to null to let scripts
+# choose sensible defaults based on model/data.
+CLIP_NORM: null
+
+# Advanced DP options for experimental control & noise planning
+DIFFERENTIAL_PRIVACY:
+  accountant: "gaussian"
+  sampling: "uniform"
+  noise_multiplier_map:
+    "inf": 0.0
+    "10.0": 1.0
+    "1.0": 2.5
+    "0.1": 5.0
+  clip_norm_default: 1.0
+  enable_per_layer_clipping: false
+
+  # Optional advanced accountant settings. These are used by planners that
+  # support RDP-based composition and per-round noise computation. They are
+  # non-breaking: planners may ignore them if unsupported.
+  privacy_accountant:
+    method: "rdp"
+    rdp_orders: [2, 4, 8, 16, 32, 64]
+    compute_per_round_noise: true
+
+# ----------------------
+# Performance & shortcuts
+# ----------------------
+# `QUICK` enables faster, lower-fidelity runs for local testing.
+QUICK: 1
+# `MAX_TRANSFER_SAMPLES` can cap PDS/transfer sizes for faster runs.
+MAX_TRANSFER_SAMPLES: 200
+
+# Visualization and Output
+OUTPUT_DIR: "generated_figures_tables"
+DEFAULT_N_WAVELENGTHS: 128
+RESAMPLE_SPECTRA: true
+RESAMPLE_METHOD: "interpolate"  # 'interpolate' or 'subsample'
+
+#   method is used; runner will set `FEDCHEM_FEDPLS_METHOD` in child envs based on `FEDPLS_METHOD`.
+USE_FEDPLS: 1
+FEDPLS_METHOD: "parametric"
+# `PIPELINE` is a lightweight description recorded in generated manifests.
+# `PIPELINE.model` is a label (string). If you want scripts to instantiate
+# models from this label automatically, tell me and I can add a safe
+# mapping layer (recommended for advanced use).
+PIPELINE:
+  model: "PLSModel"
+  x_scaler: null
+  y_scaler: null
+
+# ---------------------------
+# Experimental design helpers
+# ---------------------------
+# `EXPERIMENTAL_DESIGN` is used by generators to enumerate factor grids
+# for reproducible experiments. You normally do not need to change these
+# unless you're designing new experiments.
+EXPERIMENTAL_DESIGN:
+  DESIGN_TYPE: "fractional_factorial"  # Options: "full_factorial", "fractional_factorial", "randomized", "custom"
+
+  FACTORS:  # Define factors and their levels for factorial / fractional designs (lightweight version)
+    # DP / privacy levels (non-DP and moderate DP)
+    DP_Target_Eps: ["inf", 0.1, 1.0, 10.0]
+
+    # CT sample size (small vs moderate)
+    Transfer_Samples: [20, 40, 80, 200]
+
+    # A subset of instruments/sites (still cross-manufacturer)
+    Site: ["MA_A1","MA_A2", "MA_A3","MB_B1", "MB_B2", "MB_B3"]
+
+    # Enumerate alternative participation/compression schedules as experimental factors
+    Participation_Schedule:
+      - "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0"
+      - "1.0,1.0,0.9,0.9,0.8,0.8,0.8,0.7,0.7,0.7"
+
+    Compression_Schedule:
+      - "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0"
+      - "1.0,0.8,0.8,0.6,0.6,0.6,0.5,0.5,0.5,0.5"
+
+    # Baseline (non-federated) methods for comparison
+    Baseline: ["centralized", "site_specific", "classical_CT_PDS"]
+
+    # Federated training methods
+    Federated_Method: ["FedAvg", "FedPLS_parametric"]
+
+    # Whether to use secure aggregation for model updates
+    Use_Secure_Aggregation: [true, false]
+
+    # Variants of how CT is combined with federated learning
+    CT_Federated_Variant: ["local_then_pooled", "global_calibrate_after_fed"]
+
+    # FL optimisation hyperparameters (light choices)
+    Rounds: [10]
+    Local_Epochs: [1]
+    Local_Batch_Size: [16]
+    Learning_Rate: [0.005]
+
+    # Classical CT hyperparameters
+    CT_PDS_N_COMPONENTS: [2]
+    CT_SBC_WINDOW: [3]
+    CT_DTW_WINDOW: [10]
+
+    # DP / privacy settings
+    # "none" indicates no clipping (non-DP baseline if combined with DP_Target_Eps="inf")
+    Clip_Norm: [1.0, "none"]
+    DP_Delta: [1e-5]
+
+    # Conformal prediction (distribution-free uncertainty)
+    Conformal_Method: ["split", "cross_conformal"]
+    Conformal_Targets: [0.90, 0.95]
+    Conformal_Calibration: ["per_site", "pooled"]
+
+    # Spectral drift scenarios
+    Spectral_Drift: ["none", "moderate"]
+    Drift_Type: ["none", "jitter", "scatter", "baseline", "noise"]
+
+    # Evaluation / holdout strategies
+    Holdout_Strategy: ["LOSO_site", "random_split"]
+    EVAL_HELDOUT_SITES: ["all", "single_random"]
+
+  # Outputs and replication settings (not treated as design factors)
+  METRICS: ["RMSEP", "R2", "Coverage", "Avg_Pred_Set_Size", "Bytes_Sent", "Round_Time"]
+
+  # Random seeds for replicates; driver code should loop over these for each design point
+  SEEDS: [42, 43, 44, 45, 46]
+
+  # Number of independent runs per (design point, seed) or per design point (depending on your driver)
+  RUNS_PER_COMBO: 5
+
+CUSTOM_FILE: "custom_design.json"  # Path to custom design file for "custom" DESIGN_TYPE
+
+# ------------------
+# Helpful usage tips
+# ------------------
+# - To run all objectives with these settings, simply run:
+#     python scripts\run_all_objectives.py
+# - To override a single setting for one run, set the corresponding
+#   environment variable. Example (PowerShell):
+#     $env:FEDCHEM_FEDPLS_METHOD = 'parametric'; python scripts\run_all_objectives.py
+# - If you want `PIPELINE.model` to be instantiated to an actual model
+#   class automatically (instead of just being recorded as a string in
+#   manifests), tell me and I'll add a safe mapping from label -> class.
+
+# -------------------------------
+# Supported PIPELINE.model values
+# -------------------------------
+# The registry below lists the supported string labels you may set as
+# `PIPELINE.model` and the corresponding implementation location. The
+# runtime mapping is defined in `src/fedchem/utils/model_registry.py`.
+# To add a new label, add the model class import and mapping in that
+# file and list the label below for discoverability.
+SUPPORTED_PIPELINE_MODELS:
+  LinearModel: "fedchem.models.linear.LinearModel"
+  PLSModel: "fedchem.models.pls.PLSModel"
+  ParametricPLSModel: "fedchem.models.parametric_pls.ParametricPLSModel"
+
+# Example: to use the PLS baseline everywhere, set:
+# PIPELINE:
+#   model: "PLSModel"
+
+# -----------------------------------------------------------------------------
+# FedPLS configuration notes (clarity & examples)
+# -----------------------------------------------------------------------------
+# How FedPLS is resolved (explicit behavior):
+# - The primary control flags are `FEDCHEM_USE_FEDPLS` and `FEDCHEM_FEDPLS_METHOD`.
+# - `FEDCHEM_USE_FEDPLS` is a truthy toggle (1/true) that allows FedPLS to run.
+# - `FEDCHEM_FEDPLS_METHOD` selects the FedPLS approach and can be one of:
+#     - "simpls"  (classical SIMPLS approach)
+#     - "parametric" (ParametricPLS used in federated aggregator)
+# - IMPORTANT: Starting with the current runner behavior, FedPLS will only be
+#   enabled if BOTH conditions are satisfied:
+#     1) `FEDCHEM_FEDPLS_METHOD` is present in `config.yaml` (or environment),
+#     2) `FEDCHEM_USE_FEDPLS` resolves to true (1/true).
+#   If `FEDCHEM_FEDPLS_METHOD` is missing or empty, FedPLS is disabled regardless
+#   of `FEDCHEM_USE_FEDPLS` (this prevents ambiguous defaults or unexpected
+#   behavior when the method isn't specified).
+#
+# Usage examples (PowerShell and `config.yaml`):
+# 1) Enable FedPLS with the parametric method using the config file:
+#   FEDCHEM_USE_FEDPLS: 1
+#   FEDCHEM_FEDPLS_METHOD: "parametric"
+#
+# 2) Enable FedPLS with SIMPLS (explicit method choice):
+#   FEDCHEM_USE_FEDPLS: 1
+#   FEDCHEM_FEDPLS_METHOD: "simpls"
+#
+# 3) Disable FedPLS explicitly:
+#   - Set the toggle to 0 in config AND/OR remove the method key entirely to
+#     explicitly disable FedPLS.
+#     FEDCHEM_USE_FEDPLS: 0
+#     # FEDCHEM_FEDPLS_METHOD: # not set or removed
+#
+# IMPORTANT: `scripts/run_all_objectives.py` will set `FEDCHEM_FEDPLS_METHOD`
+# for child processes only from `config.yaml` (not from a shell environment). If
+# the key is missing from `config.yaml`, the runner removes the env var so the
+# child process cannot inherit a method from the shell. This keeps experiments
+# reproducible across combos.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Key Parameter Usage & Common Conflicts
+# -----------------------------------------------------------------------------
+# This project accepts configuration via `config.yaml` and environment variables.
+# Environment variables take precedence for direct invocations, but `run_all_objectives.py`
+# seeds child envs from the config and enforces the `FEDCHEM_FEDPLS_METHOD` behavior.
+# Use these guidelines to avoid common conflicts:
+#
+# - `USE_TECATOR` / `FEDCHEM_USE_TECATOR`:
+#     - Force the Tecator fallback dataset when true.
+#     - If Tecator fallback is used, persistent dataset code paths will be skipped.
+#
+# - `NUM_SITES` / `FEDCHEM_NUM_SITES`:
+#     - Requesting more sites than available in persistent dataset raises an error.
+#     - If using `DATA_CONFIG` keys as site names, ensure the site list in the design
+#       or the dataset includes those names.
+#
+# - `EXPERIMENTAL_DESIGN.FACTORS.Site` and `DATA_CONFIG`:
+#     - `EXPERIMENTAL_DESIGN.FACTORS.Site` lists site codes for factorial designs.
+#     - If `EXPERIMENTAL_DESIGN.FACTORS.Site` is missing, scripts fall back to
+#       site names from `DATA_CONFIG` keys (e.g., ManufacturerA/ManufacturerB).
+#     - When specifying sites manually, ensure the specified codes exist in the
+#       persistent dataset or the loader will warn and fall back to available names.
+#
+# - `PARTICIPATION_RATE` vs `PARTICIPATION_SCHEDULE`:
+#     - If `PARTICIPATION_SCHEDULE` (a series of per-round participation fractions)
+#       is set, it takes precedence over the `PARTICIPATION_RATE` scalar.
+#     - Use per-round schedules for experiments measuring sampling effects over rounds.
+#
+# - Compression schedule and participation schedule interplay:
+#     - These schedules are applied per round. Ensure both lists have length at least
+#       equal to ROUNDS or they will be truncated/extended to match `ROUNDS` in scripts.
+#
+# - `MAX_TRANSFER_SAMPLES` and Transfer_Samples factors:
+#     - If `MAX_TRANSFER_SAMPLES` is set in `config.yaml`, it caps any transfer sample
+#       value (`k`) used in experimental combos. This avoids an imbalance or accidental
+#       huge transfers that slow runs or exceed resources.
+#
+# - Differential Privacy values `DP_TARGET_EPS` and `DP_DELTA`:
+#     - `DP_TARGET_EPS` accepts the explicit token `inf` (or string 'inf') to request
+#       a non-private (infinite epsilon) run.
+#     - Use `DP_DELTA` consistently; the experimental design may enumerate `DP_Delta`.
+#
+# - `DEFAULT_N_WAVELENGTHS` and `FEDCHEM_N_WAVELENGTHS` env override:
+#     - `DEFAULT_N_WAVELENGTHS` controls how many wavelengths are kept when loading
+#       spectral data; if trimmed too aggressively you may lose required features.
+#
+# - `FEDCHEM_FEDPLS_METHOD` compatibility:
+#     - `parametric` and `simpls` may produce different runtime artifacts (different
+#       model parameters and communication/data shapes). If you plan to test both,
+#       enumerate them explicitly in your `EXPERIMENTAL_DESIGN` so the master runner
+#       creates reproducible combos.
+#
+# - Debugging tip: `run_all_objectives.py` now sets the method for each combo strictly
+#   from `config.yaml`. If you suspect method flips, confirm the `FEDCHEM_FEDPLS_METHOD`
+#   key exists in `config.yaml` and that the master runner loads the config with the
+#   expected value (e.g., run `python -c "from fedchem.utils.config import load_config; print(load_config().get('FEDCHEM_FEDPLS_METHOD'))"`).
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Conformal configuration (distribution-free prediction intervals)
+# -----------------------------------------------------------------------------
+CONFORMAL:
+  method: null
+  calibration_fraction: 0.2
+  nonconformity_score: "abs_residual"
+  target_coverages: [0.90, 0.95]
+  per_site_or_pooled: "per_site"
+
+# -----------------------------------------------------------------------------
+# Secure aggregation and communication logging
+# -----------------------------------------------------------------------------
+SECURE_AGGREGATION:
+  enabled: true
+  scheme: "threshold"
+  # Minimum number of participants required to perform threshold secure aggregation.
+  threshold_k: 2
+  key_size_bits: 2048
+  require_bytes_log: true
+  compression_bits_per_value: 8
+
+# -----------------------------------------------------------------------------
+# Drift augmentation defaults used by the loader
+# -----------------------------------------------------------------------------
+DRIFT_AUGMENT:
+  apply_augmentation_during_training: true
+  apply_test_shifts: true
+  jitter_wavelength_px: 0.01
+  multiplicative_scatter: 0.05
+  baseline_offset: 0.005
+  white_noise_sigma: 0.005
+  augmentation_seed: 99
+
+# -----------------------------------------------------------------------------
+# Logging, reproducibility & LCA handoff meta data
+# -----------------------------------------------------------------------------
+REPRODUCIBILITY:
+  run_seeds: [42, 43]
+  git_commit: null
+  manifest_fields: ["config", "git_commit", "python_packages", "DIFFERENTIAL_PRIVACY"]
+  export_lca_artifacts: true
+  lca_artifact_dir: "generated_figures_tables/lca_artifacts"
+  log_level: "INFO"
+  # Optionally log model weight snapshots (per-round) to help correlate
+  # communication bytes with model evolution. Interval is number of rounds.
+  log_weight_snapshots: true
+  log_weight_snapshot_interval: 10
