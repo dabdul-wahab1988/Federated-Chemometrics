@@ -40,7 +40,7 @@ from fedchem.telemetry.logger import TelemetryLogger
 from fedchem.conformal.report import summarize_interval
 from fedchem.benchmarks import build_method_rows, DEFAULT_METRICS
 from fedchem.privacy.report import DPConfig, build_privacy_entry
-from fedchem.metrics.metrics import rmsep, r2
+from fedchem.metrics.metrics import rmsep, r2, cvrmsep
 
 try:
     # Pipeline is optional in some setups; fall back to identity
@@ -271,12 +271,18 @@ def run_federated_protocol(data_root: Path, k: int = 200,
         interval_summaries.append(summarize_interval(site_id, "central", y_local_test, lower_central, upper_central))
 
         rmsep_pds = float(rmsep(y_local_test, y_pred_pds))
+        cvrmsep_pds = float(cvrmsep(y_local_test, y_pred_pds))
         rmsep_site_specific = float(rmsep(y_local_test, y_pred_site_specific))
+        cvrmsep_site_specific = float(cvrmsep(y_local_test, y_pred_site_specific))
         rmsep_central_naive = float(rmsep(y_local_test, y_pred_central_naive))
+        cvrmsep_central_naive = float(cvrmsep(y_local_test, y_pred_central_naive))
         rmsep_sbc = float(rmsep(y_local_test, y_pred_sbc))
+        cvrmsep_sbc = float(cvrmsep(y_local_test, y_pred_sbc))
         rmsep_fedavg = float(rmsep(y_local_test, y_pred_fedavg))
+        cvrmsep_fedavg = float(cvrmsep(y_local_test, y_pred_fedavg))
         r2_pds = float(r2(y_local_test, y_pred_pds))
         rmsep_crds = float(rmsep(y_local_test, y_pred_crds)) if y_pred_crds is not None else None
+        cvrmsep_crds = float(cvrmsep(y_local_test, y_pred_crds)) if y_pred_crds is not None else None
 
         method_predictions = {
             "pds": y_pred_pds,
@@ -292,11 +298,17 @@ def run_federated_protocol(data_root: Path, k: int = 200,
         results_entry = {
             "site_id": site_id,
             "rmsep_pds": rmsep_pds,
+            "cvrmsep_pds": cvrmsep_pds,
             "rmsep_site_specific": rmsep_site_specific,
+            "cvrmsep_site_specific": cvrmsep_site_specific,
             "rmsep_central_naive": rmsep_central_naive,
+            "cvrmsep_central_naive": cvrmsep_central_naive,
             "rmsep_sbc": rmsep_sbc,
+            "cvrmsep_sbc": cvrmsep_sbc,
             "rmsep_fedavg": rmsep_fedavg,
+            "cvrmsep_fedavg": cvrmsep_fedavg,
             "rmsep_crds": rmsep_crds,
+            "cvrmsep_crds": cvrmsep_crds,
             "r2_pds": r2_pds,
             "coverage_pds": coverage_pds,
             "coverage_central": coverage_central,
@@ -380,11 +392,17 @@ def run_federated_protocol(data_root: Path, k: int = 200,
     keys = [
         "site_id",
         "rmsep_pds",
+        "cvrmsep_pds",
         "rmsep_central_naive",
+        "cvrmsep_central_naive",
         "rmsep_site_specific",
+        "cvrmsep_site_specific",
         "rmsep_sbc",
+        "cvrmsep_sbc",
         "rmsep_fedavg",
+        "cvrmsep_fedavg",
         "rmsep_crds",
+        "cvrmsep_crds",
         "coverage_pds",
         "coverage_central",
         "interval_width_pds",

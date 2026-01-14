@@ -57,6 +57,7 @@ def _extract_metrics(summary: Mapping[str, Any]) -> Dict[str, Optional[float]]:
     stats_block = summary.get("statistics") if isinstance(summary.get("statistics"), Mapping) else {}
 
     rmsep = _safe_float(final_block.get("rmsep")) or _safe_float(stats_block.get("rmsep_final"))
+    cvrmsep = _safe_float(final_block.get("cvrmsep")) or _safe_float(stats_block.get("cvrmsep_final"))
     r2 = _safe_float(final_block.get("r2")) or _safe_float(stats_block.get("r2_final"))
     coverage = _safe_float(final_block.get("coverage")) or _safe_float(stats_block.get("coverage_final"))
     avg_set = _safe_float(stats_block.get("avg_interval_width"))
@@ -75,6 +76,7 @@ def _extract_metrics(summary: Mapping[str, Any]) -> Dict[str, Optional[float]]:
 
     return {
         "RMSEP": rmsep,
+        "CVRMSEP": cvrmsep,
         "R2": r2,
         "Coverage": coverage,
         "Avg_Pred_Set_Size": avg_set,

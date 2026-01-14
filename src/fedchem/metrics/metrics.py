@@ -10,6 +10,15 @@ def rmsep(y_true: FloatArray, y_pred: FloatArray) -> float:
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
+def cvrmsep(y_true: FloatArray, y_pred: FloatArray, zero_guard: float = 1e-12) -> float:
+    if y_true.shape != y_pred.shape:
+        raise ValueError("Shapes must match")
+    denom = float(np.mean(np.abs(y_true)))
+    if denom <= zero_guard:
+        raise ValueError("Mean magnitude of y_true is too small for normalization")
+    return rmsep(y_true, y_pred) / denom
+
+
 def mae(y_true: FloatArray, y_pred: FloatArray) -> float:
     if y_true.shape != y_pred.shape:
         raise ValueError("Shapes must match")

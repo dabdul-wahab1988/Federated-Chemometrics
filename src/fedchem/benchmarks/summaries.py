@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import Dict, Iterable, List, Sequence
 import numpy as np
 
-from fedchem.metrics.metrics import mae, rmsep, r2
+from fedchem.metrics.metrics import mae, rmsep, r2, cvrmsep
 
 # Default metric ordering used in publication tables
-DEFAULT_METRICS: Sequence[str] = ("rmsep", "mae", "r2")
+DEFAULT_METRICS: Sequence[str] = ("rmsep", "cvrmsep", "mae", "r2")
 
 _METRIC_FUNCS = {
     "rmsep": rmsep,
+    "cvrmsep": cvrmsep,
     "mae": mae,
     "r2": r2,
 }

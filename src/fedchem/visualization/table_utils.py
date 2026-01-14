@@ -5,6 +5,7 @@ import numpy as np
 
 FIELD_ALIASES = {
     'rmsep': ['RMSEP', 'rmse', 'rmse_p', 'rmsep'],
+    'cvrmsep': ['CVRMSEP', 'cvrmsep', 'cv_rmsep', 'cv_rmse'],
     'bytes_sent': ['Bytes_Sent', 'bytes_sent', 'bytesSent'],
     'bytes_recv': ['Bytes_Received', 'bytes_recv', 'bytesRecv'],
     'epsilon': ['EpsilonSoFar', 'epsilon_so_far', 'epsilon'],
@@ -35,6 +36,7 @@ def manifest_to_table(manifest: Dict[str, Any]) -> pd.DataFrame:
                 'method': method,
                 'round': l.get('Round', l.get('round', None)),
                 'rmsep': _find_field(l, FIELD_ALIASES['rmsep']),
+                'cvrmsep': _find_field(l, FIELD_ALIASES['cvrmsep']),
                 'bytes_sent': _find_field(l, FIELD_ALIASES['bytes_sent']),
                 'bytes_recv': _find_field(l, FIELD_ALIASES['bytes_recv']),
                 'epsilon': _find_field(l, FIELD_ALIASES['epsilon']),
@@ -45,7 +47,7 @@ def manifest_to_table(manifest: Dict[str, Any]) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     # ensure types
     if not df.empty:
-        for col in ['rmsep', 'bytes_sent', 'bytes_recv', 'epsilon', 'update_norm', 'participation']:
+        for col in ['rmsep', 'cvrmsep', 'bytes_sent', 'bytes_recv', 'epsilon', 'update_norm', 'participation']:
             series = df.get(col)
             if series is None:
                 df[col] = pd.Series([None] * len(df))

@@ -55,6 +55,7 @@ class RoundLog:
     seed: Optional[int] = None
     # Optional evaluation metrics (filled if eval_fn provided)
     rmsep: Optional[float] = None
+    cvrmsep: Optional[float] = None
     r2: Optional[float] = None
     mae: Optional[float] = None
     # Optional privacy/participation telemetry
@@ -528,6 +529,7 @@ class FederatedOrchestrator:
             dt = time.perf_counter() - t0
             # Evaluate if requested
             m_rmsep: Optional[float] = None
+            m_cvrmsep: Optional[float] = None
             m_r2: Optional[float] = None
             m_mae: Optional[float] = None
             eval_err: Optional[str] = None
@@ -535,9 +537,11 @@ class FederatedOrchestrator:
                 try:
                     metrics = eval_fn(global_model)
                     val_rmsep = metrics.get("rmsep")
+                    val_cvrmsep = metrics.get("cvrmsep")
                     val_r2 = metrics.get("r2")
                     val_mae = metrics.get("mae")
                     m_rmsep = float(val_rmsep) if val_rmsep is not None else None
+                    m_cvrmsep = float(val_cvrmsep) if val_cvrmsep is not None else None
                     m_r2 = float(val_r2) if val_r2 is not None else None
                     m_mae = float(val_mae) if val_mae is not None else None
                 except Exception as e:
@@ -600,6 +604,7 @@ class FederatedOrchestrator:
                     duration_sec=dt,
                     seed=int(rng.integers(0, 2**31)),
                     rmsep=m_rmsep,
+                    cvrmsep=m_cvrmsep,
                     r2=m_r2,
                     mae=m_mae,
                     participation_rate=float(actual_participation),

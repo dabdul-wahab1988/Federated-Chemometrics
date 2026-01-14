@@ -69,6 +69,7 @@ def create_log_summary(logs_by_algorithm):
         
         # Get min/max/mean values across all rounds
         rmseps = [log.get('rmsep') for log in logs if log.get('rmsep') is not None]
+        cvrmseps = [log.get('cvrmsep') for log in logs if log.get('cvrmsep') is not None]
         r2s = [log.get('r2') for log in logs if log.get('r2') is not None]
         maes = [log.get('mae') for log in logs if log.get('mae') is not None]
         bytes_sent = [log.get('bytes_sent', 0) for log in logs]
@@ -80,6 +81,7 @@ def create_log_summary(logs_by_algorithm):
             "final": {
                 "round": final_log.get('round'),
                 "rmsep": final_log.get('rmsep'),
+                "cvrmsep": final_log.get('cvrmsep'),
                 "r2": final_log.get('r2'),
                 "mae": final_log.get('mae'),
                 "epsilon_so_far": final_log.get('epsilon_so_far'),
@@ -90,6 +92,10 @@ def create_log_summary(logs_by_algorithm):
                 "rmsep_min": min(rmseps) if rmseps else None,
                 "rmsep_max": max(rmseps) if rmseps else None,
                 "rmsep_mean": sum(rmseps)/len(rmseps) if rmseps else None,
+                "cvrmsep_final": cvrmseps[-1] if cvrmseps else None,
+                "cvrmsep_min": min(cvrmseps) if cvrmseps else None,
+                "cvrmsep_max": max(cvrmseps) if cvrmseps else None,
+                "cvrmsep_mean": sum(cvrmseps)/len(cvrmseps) if cvrmseps else None,
                 "r2_final": r2s[-1] if r2s else None,
                 "r2_min": min(r2s) if r2s else None,
                 "r2_max": max(r2s) if r2s else None,

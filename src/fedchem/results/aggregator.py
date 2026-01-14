@@ -11,6 +11,7 @@ from .manager import ResultsTree, ensure_results_tree
 
 _METRIC_FIELDS = {
     "rmsep": "metrics.RMSEP",
+    "cvrmsep": "metrics.CVRMSEP",
     "r2": "metrics.R2",
     "coverage": "metrics.Coverage",
     "avg_pred_set_size": "metrics.Avg_Pred_Set_Size",
@@ -127,12 +128,14 @@ def export_methods_summary(summary_df: pd.DataFrame, tree: ResultsTree) -> dict[
 def _to_site_entry(row: Mapping[str, Any]) -> Dict[str, Any]:
     method = str(row.get("method") or "")
     rmsep = row.get("rmsep")
+    cvrmsep = row.get("cvrmsep")
     r2 = row.get("r2")
     coverage = row.get("coverage")
     entry: Dict[str, Any] = {
         "site_id": row.get("site_id") or row.get("instrument_code") or row.get("site_factor"),
         "method": method,
         "rmsep": rmsep,
+        "cvrmsep": cvrmsep,
         "r2": r2,
         "coverage": coverage,
         "interval_width_pds": row.get("avg_pred_set_size"),
@@ -143,10 +146,12 @@ def _to_site_entry(row: Mapping[str, Any]) -> Dict[str, Any]:
     }
     if "fed" in method.lower():
         entry["rmsep_fedavg"] = rmsep
+        entry["cvrmsep_fedavg"] = cvrmsep
         entry["r2_fedavg"] = r2
         entry["coverage_fedavg"] = coverage
     else:
         entry["rmsep_pds"] = rmsep
+        entry["cvrmsep_pds"] = cvrmsep
         entry["r2_pds"] = r2
         entry["coverage_pds"] = coverage
     return {k: v for k, v in entry.items() if v is not None}
@@ -173,7 +178,7 @@ def summarize_metrics(summary_df: pd.DataFrame) -> pd.DataFrame:
 
     if summary_df.empty:
         return pd.DataFrame()
-    metric_cols = [col for col in ("rmsep", "r2", "coverage", "avg_pred_set_size", "bytes", "round_time") if col in summary_df.columns]
+    metric_cols = [col for col in ("rmsep", "cvrmsep", "r2", "coverage", "avg_pred_set_size", "bytes", "round_time") if col in summary_df.columns]
     group_cols = ["run_label", "method", "site_id"]
     group_cols += [col for col in ("spectral_drift", "drift_type", "dp_target_eps", "design_dp_target_eps") if col in summary_df.columns]
 

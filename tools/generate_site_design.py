@@ -40,7 +40,7 @@ from fedchem.preprocess.pipeline import PreprocessPipeline
 from fedchem.utils.config import load_and_seed_config
 from fedchem.ct.pds_transfer import PDSTransfer
 from fedchem.models.pls import PLSModel
-from fedchem.metrics.metrics import rmsep, r2
+from fedchem.metrics.metrics import rmsep, r2, cvrmsep
 
 # reuse helper from generate_objective_site for plotting if desired
 import matplotlib.pyplot as plt
@@ -211,6 +211,7 @@ def compute_pds_experiment(data: Dict[str, Dict[str, Any]], transfer_n: int = 20
 
     methods = ['Centralized', 'Site-specific', 'PDS', 'SBC']
     method_rmse = {m: [] for m in methods}
+    method_cvrmse = {m: [] for m in methods}
     per_site_preds = {}
     diags_rows = []
 
@@ -225,6 +226,7 @@ def compute_pds_experiment(data: Dict[str, Dict[str, Any]], transfer_n: int = 20
         model_site = PLSModel().fit(X_tr, y_tr)
         yhat_site = model_site.predict(X_te)
         method_rmse['Site-specific'].append(float(rmsep(y_te, yhat_site)))
+        method_cvrmse['Site-specific'].append(float(cvrmsep(y_te, yhat_site)))
         # centralized predictions (central trained on pooled X_pool_proc) -> need to transform X_te similarly
         if pipeline is not None:
             X_te_proc = pipeline.transform(X_te)
@@ -232,6 +234,7 @@ def compute_pds_experiment(data: Dict[str, Dict[str, Any]], transfer_n: int = 20
             X_te_proc = X_te
         yhat_c = central.predict(X_te_proc)
         method_rmse['Centralized'].append(float(rmsep(y_te, yhat_c)))
+        method_cvrmse['Centralized'].append(float(cvrmsep(y_te, yhat_c)))
 
         # PDS: prepare k and data for transfer fit
         k = min(transfer_n, n_tr, X_pool.shape[0])
@@ -253,6 +256,7 @@ def compute_pds_experiment(data: Dict[str, Dict[str, Any]], transfer_n: int = 20
             # central predict on transformed features
             yhat_pds = central.predict(Xte_trans)
             method_rmse['PDS'].append(float(rmsep(y_te, yhat_pds)))
+            method_cvrmse['PDS'].append(float(cvrmsep(y_te, yhat_pds)))
             # SBC
             yhat_tr = central.predict(pipeline.transform(X_tr) if pipeline is not None else X_tr)
             A = np.vstack([yhat_tr, np.ones_like(yhat_tr)]).T
@@ -260,6 +264,7 @@ def compute_pds_experiment(data: Dict[str, Dict[str, Any]], transfer_n: int = 20
             a, b = coeffs
             yhat_adj = a * yhat_c + b
             method_rmse['SBC'].append(float(rmsep(y_te, yhat_adj)))
+            method_cvrmse['SBC'].append(float(cvrmsep(y_te, yhat_adj)))
 
             # collect diagnostics
             diags_rows.append({
@@ -268,8 +273,11 @@ def compute_pds_experiment(data: Dict[str, Dict[str, Any]], transfer_n: int = 20
                 "max_block_cond": float(np.max(diags.cond_numbers) if diags.cond_numbers else np.nan),
                 "mean_block_rmse": float(diags.mean_rmse),
                 "pds_rmsep": float(rmsep(y_te, yhat_pds)),
+                "pds_cvrmsep": float(cvrmsep(y_te, yhat_pds)),
                 "central_rmsep": float(rmsep(y_te, yhat_c)),
+                "central_cvrmsep": float(cvrmsep(y_te, yhat_c)),
                 "site_specific_rmsep": float(rmsep(y_te, yhat_site)),
+                "site_specific_cvrmsep": float(cvrmsep(y_te, yhat_site)),
                 "r2_pds": float(r2(y_te, yhat_pds)),
             })
             per_site_preds[s] = {"y_te": y_te.tolist(), "yhat_pds": yhat_pds.tolist()}
@@ -277,12 +285,15 @@ def compute_pds_experiment(data: Dict[str, Dict[str, Any]], transfer_n: int = 20
             diags_rows.append({"site": s, "error": str(e)})
             method_rmse['PDS'].append(float('nan'))
             method_rmse['SBC'].append(float('nan'))
+            method_cvrmse['PDS'].append(float('nan'))
+            method_cvrmse['SBC'].append(float('nan'))
             per_site_preds[s] = {"y_te": y_te.tolist(), "yhat_pds": [float('nan')] * len(y_te)}
 
     return {
         "methods": methods,
         "sites": sites,
         "method_rmse": method_rmse,
+        "method_cvrmse": method_cvrmse,
         "per_site_preds": per_site_preds,
         "diags": diags_rows,
     }
@@ -300,6 +311,7 @@ def run_and_save(seed: int = 42):
     # Create a simple figure summarizing mean RMSEP per method for A
     methods = resA["methods"]
     meansA = [float(np.mean(resA["method_rmse"][m])) for m in methods]
+    meansA_cv = [float(np.mean(resA["method_cvrmse"][m])) for m in methods]
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.bar(methods, meansA)
     ax.set_yscale('log')
@@ -309,7 +321,16 @@ def run_and_save(seed: int = 42):
     fig_pathA = OUT_DIR / "figure_site_A.png"
     fig.savefig(fig_pathA, dpi=200)
     plt.close(fig)
-    (OUT_DIR / "figure_site_A_meta.json").write_text(json.dumps({"methods": methods, "mean_rmse": {m: float(np.mean(resA["method_rmse"][m])) for m in methods}}, indent=2))
+    (OUT_DIR / "figure_site_A_meta.json").write_text(
+        json.dumps(
+            {
+                "methods": methods,
+                "mean_rmse": {m: float(np.mean(resA["method_rmse"][m])) for m in methods},
+                "mean_cvrmse": {m: float(np.mean(resA["method_cvrmse"][m])) for m in methods},
+            },
+            indent=2,
+        )
+    )
 
     # Save dataset manifest and per-site files already written by build_paired_dataset
 
@@ -358,6 +379,7 @@ def run_and_save(seed: int = 42):
     # Create a simple figure summarizing mean RMSEP per method for B
     methodsB = resB["methods"]
     meansB = [float(np.mean(resB["method_rmse"][m])) for m in methodsB]
+    meansB_cv = [float(np.mean(resB["method_cvrmse"][m])) for m in methodsB]
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.bar(methodsB, meansB, color='C1')
     ax.set_yscale('log')
@@ -367,12 +389,33 @@ def run_and_save(seed: int = 42):
     fig_pathB = OUT_DIR / "figure_site_B.png"
     fig.savefig(fig_pathB, dpi=200)
     plt.close(fig)
-    (OUT_DIR / "figure_site_B_meta.json").write_text(json.dumps({"methods": methodsB, "mean_rmse": {m: float(np.mean(resB["method_rmse"][m])) for m in methodsB}}, indent=2))
+    (OUT_DIR / "figure_site_B_meta.json").write_text(
+        json.dumps(
+            {
+                "methods": methodsB,
+                "mean_rmse": {m: float(np.mean(resB["method_rmse"][m])) for m in methodsB},
+                "mean_cvrmse": {m: float(np.mean(resB["method_cvrmse"][m])) for m in methodsB},
+            },
+            indent=2,
+        )
+    )
 
     # Save a combined CSV for easy inspection
     import csv
     csv_path = OUT_DIR / "site_pds_diagnostics.csv"
-    keys = ["site", "mode", "max_block_cond", "mean_block_rmse", "pds_rmsep", "central_rmsep", "site_specific_rmsep", "r2_pds"]
+    keys = [
+        "site",
+        "mode",
+        "max_block_cond",
+        "mean_block_rmse",
+        "pds_rmsep",
+        "pds_cvrmsep",
+        "central_rmsep",
+        "central_cvrmsep",
+        "site_specific_rmsep",
+        "site_specific_cvrmsep",
+        "r2_pds",
+    ]
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=keys)
         writer.writeheader()
@@ -392,8 +435,11 @@ def run_and_save(seed: int = 42):
                 "max_block_cond": f"A:{out.get('A_max_block_cond')}|B:{out.get('B_max_block_cond')}",
                 "mean_block_rmse": f"A:{out.get('A_mean_block_rmse')}|B:{out.get('B_mean_block_rmse')}",
                 "pds_rmsep": f"A:{out.get('A_pds_rmsep')}|B:{out.get('B_pds_rmsep')}",
+                "pds_cvrmsep": f"A:{out.get('A_pds_cvrmsep')}|B:{out.get('B_pds_cvrmsep')}",
                 "central_rmsep": f"A:{out.get('A_central_rmsep')}|B:{out.get('B_central_rmsep')}",
+                "central_cvrmsep": f"A:{out.get('A_central_cvrmsep')}|B:{out.get('B_central_cvrmsep')}",
                 "site_specific_rmsep": f"A:{out.get('A_site_specific_rmsep')}|B:{out.get('B_site_specific_rmsep')}",
+                "site_specific_cvrmsep": f"A:{out.get('A_site_specific_cvrmsep')}|B:{out.get('B_site_specific_cvrmsep')}",
                 "r2_pds": f"A:{out.get('A_r2_pds')}|B:{out.get('B_r2_pds')}",
             })
 
