@@ -33,5 +33,5 @@ dev = [
 spec-lint = "fedchem.scripts.spec_lint:main"
 
 [tool.pytest.ini_options]
-addopts = "-q --cov=fedchem --cov-branch --cov-report=term-missing --cov-fail-under=85"
+addopts = "-q --cov=fedchem.metrics --cov=fedchem.ct.pds_transfer --cov-branch --cov-report=term-missing --cov-fail-under=85"
 testpaths = ["tests"]
