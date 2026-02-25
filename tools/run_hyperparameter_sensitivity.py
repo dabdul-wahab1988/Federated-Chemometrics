@@ -59,7 +59,7 @@ def run_fl_grid():
     clients = [{"X": Xra[:split], "y": ya[:split]}, {"X": Xrb[:split], "y": yb[:split]}]
     
     for C in [0.5, 1.0, 2.0]:
-        for R in [1, 5, 10]:
+        for R in [1, 2, 5, 10]:
             orch = FederatedOrchestrator()
             res = orch.run_rounds(
                 clients=clients, model=instantiate_model("PLSModel", n_components=5),
