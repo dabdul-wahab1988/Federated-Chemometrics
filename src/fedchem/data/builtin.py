@@ -12,10 +12,10 @@ register_dataset(
         name="tecator",
         license="Research/educational use (verify source terms)",
         # Try a known ASCII mirror first (lib.stat), then the historical KU .mat URL.
-        url="http://www.models.life.ku.dk/fooddata/tecator.mat",
+        url="https://www.models.life.ku.dk/fooddata/tecator.mat",
         urls=[
-            "http://lib.stat.cmu.edu/datasets/tecator",
-            "http://www.models.life.ku.dk/fooddata/tecator.mat",
+            "https://lib.stat.cmu.edu/datasets/tecator",
+            "https://www.models.life.ku.dk/fooddata/tecator.mat",
         ],
         filename="tecator.mat",
         sha256=None,  # Consider setting if you mirror a stable copy

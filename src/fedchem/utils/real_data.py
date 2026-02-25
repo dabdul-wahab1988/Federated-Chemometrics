@@ -163,14 +163,14 @@ def _parse_wavelength_names(col_names: list[str] | None) -> np.ndarray | None:
         try:
             v = float(str(c).strip().replace("wl_", "").replace("w", ""))
             vals.append(v)
-        except Exception:
+        except ValueError:
             # not a numeric column name: fail gracefully
             return None
     try:
         arr = np.asarray(vals, dtype=float)
         if arr.size and np.all(np.isfinite(arr)):
             return arr
-    except Exception:
+    except ValueError:
         pass
     return None
 
@@ -214,7 +214,17 @@ def resample_spectra(
             else:
                 Xr = X[:, idx]
         return Xr, new_wl.tolist()
-    # Fall back to evenly spaced indices selection (no interpolation)
+
+    # Fall back to deterministic linear interpolation on indices if metadata is absent
+    if method == "interpolate":
+        wl_fallback = np.arange(n_feat)
+        new_wl_fallback = np.linspace(0, n_feat - 1, n_wavelengths)
+        Xr = np.empty((X.shape[0], n_wavelengths), dtype=X.dtype)
+        for i in range(X.shape[0]):
+            Xr[i, :] = np.interp(new_wl_fallback, wl_fallback, X[i, :])
+        return Xr, None
+
+    # Secondary fallback to evenly spaced indices selection (subsampling)
     indices = _compute_wavelength_indices(n_feat, n_wavelengths)
     if indices is None:
         return X, None

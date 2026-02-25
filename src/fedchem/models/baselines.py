@@ -99,7 +99,10 @@ class DTWCT(BaseModel):
 
     @staticmethod
     def _dtw_path(a: np.ndarray, b: np.ndarray, window: int | None = None) -> list[tuple[int, int]]:
+        import logging
         n, m = len(a), len(b)
+        if n > 512 or m > 512:
+            logging.warning("DTW processing %s x %s spectra in pure Python. O(N^2) complexity will cause severe performance degradation.", n, m)
         D = np.full((n + 1, m + 1), np.inf)
         D[0, 0] = 0.0
         for i in range(1, n + 1):

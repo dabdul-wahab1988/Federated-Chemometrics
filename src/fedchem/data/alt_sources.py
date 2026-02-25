@@ -14,7 +14,7 @@ def fetch_tecator_from_libstat(dest: Path) -> Path:
     The function writes a MAT file with variables 'absorbance' (240x100) and 'fat' (240,).
     Returns the path to the written file.
     """
-    url = "http://lib.stat.cmu.edu/datasets/tecator"
+    url = "https://lib.stat.cmu.edu/datasets/tecator"
     dest.parent.mkdir(parents=True, exist_ok=True)
     # download page
     with urllib.request.urlopen(url) as resp:

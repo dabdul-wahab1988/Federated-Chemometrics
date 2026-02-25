@@ -109,7 +109,8 @@ def _load_custom_design(design_cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
         return []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Failed to load custom design from {path}: {e}")
         return []
     if isinstance(data, list) and all(isinstance(entry, dict) for entry in data):
         return data

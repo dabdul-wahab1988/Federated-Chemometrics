@@ -141,7 +141,9 @@ EXPERIMENTAL_DESIGN:
     Learning_Rate: [0.005]
     CT_PDS_N_COMPONENTS: [2]
     CT_SBC_WINDOW: [3]
-    CT_DTW_WINDOW: [10]
+    # Experimental / not used in this paper
+    # DTW not executed in generate_objective_*.py for this manuscript
+    # CT_DTW_WINDOW: [10]
     Clip_Norm: [1.0]
     DP_Delta: [1e-5]
 

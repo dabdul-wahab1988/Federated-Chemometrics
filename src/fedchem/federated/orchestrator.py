@@ -193,9 +193,10 @@ class FederatedOrchestrator:
             participation_schedule = _normalize_schedule(dp_config.get("participation_schedule"), clip01=True)
             compression_schedule = _normalize_schedule(dp_config.get("compression_schedule"), floor=0.0)
             # Effective sensitivity: average under secure aggregation over N clients when clipping is used
-            if clip_norm is not None and len(clients) > 0:
+            clip_norm_val = _safe_float(clip_norm)
+            if clip_norm_val is not None and len(clients) > 0:
                 N = float(len(clients))
-                sensitivity = float(clip_norm) / N
+                sensitivity = float(clip_norm_val) / N
             else:
                 sensitivity = 1.0
             # Solve sigma when target epsilon is given
@@ -213,8 +214,9 @@ class FederatedOrchestrator:
                             q_r = float(sched[r]) if r < len(sched) else float(sched[-1])
                             # expected participants for solving; at runtime, actual may differ
                             m_exp = max(1, int(round(q_r * Nloc)))
-                            if clip_norm is not None:
-                                sens_r = float(clip_norm) / float(m_exp)
+                            clip_norm_val = _safe_float(clip_norm)
+                            if clip_norm_val is not None:
+                                sens_r = float(clip_norm_val) / float(m_exp)
                             else:
                                 sens_r = 1.0
                             if 0.0 < q_r < 1.0:
@@ -838,7 +840,7 @@ class FederatedOrchestrator:
                 # solve R w = v
                 try:
                     w = np.linalg.solve(R, v)
-                except Exception:
+                except np.linalg.LinAlgError:
                     # fallback to pseudo-inverse
                     w = np.linalg.pinv(R) @ v
                 denom = float(np.sqrt(max(1e-20, w.T @ (R @ w))))
