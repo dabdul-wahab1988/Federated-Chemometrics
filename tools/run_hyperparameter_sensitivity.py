@@ -1,13 +1,10 @@
 """
-Hyperparameter Sensitivity Analysis Script (Fixed & Enhanced).
+Final Hyperparameter Sensitivity Analysis Script.
 
-Evaluates impact of:
-- PDS Window Size (w) - explicitly testing block-wise resolution.
-- Ridge Penalty (lambda)
-- DP Clip Norm (C) - capturing actual utility (RMSEP).
-- Communication Rounds (R) - verifying convergence.
-
-Outputs structured CSVs for the Supplementary Information.
+Generates definitive data for:
+1. PDS w x lambda Grid (RMSEP)
+2. DP Clip Norm C (RMSEP & Clipped Fraction)
+3. Rounds R (Convergence)
 """
 
 import os
@@ -29,114 +26,56 @@ output_dir.mkdir(parents=True, exist_ok=True)
 def load_data():
     df_a = pd.read_csv("data/MA_A2.csv")
     df_b = pd.read_csv("data/MB_B2.csv")
-    
     def prep(df):
         y = df['Protein'].to_numpy().astype(float)
         spec_cols = [c for c in df.columns if c not in ['ID', 'Protein']]
         X = df[spec_cols].to_numpy().astype(float)
         return X, y, spec_cols
-
     Xa, ya, ca = prep(df_a)
     Xb, yb, cb = prep(df_b)
-    
-    # Resample to canonical 128
     Xra, _ = resample_spectra(Xa, col_names=ca, n_wavelengths=128)
     Xrb, _ = resample_spectra(Xb, col_names=cb, n_wavelengths=128)
     return Xra, ya, Xrb, yb
 
 Xra, ya, Xrb, yb = load_data()
 
-# Shared eval helper
-def make_eval_fn(X_val, y_val):
-    def eval_fn(model):
-        yhat = model.predict(X_val)
-        return {"rmsep": rmsep(y_val, yhat)}
-    return eval_fn
-
 def run_pds_grid():
     results = []
-    windows = [16, 32, 64]
-    ridges = [1e-4, 1e-3, 1e-2, 1e-1, 1.0]
-    
-    k = 40
-    X_ref, y_ref = Xra[:k], ya[:k]
-    X_site, y_site = Xrb[:k], yb[:k]
-    X_test, y_test = Xrb[k:], yb[k:]
-    
-    master = instantiate_model("PLSModel", n_components=10).fit(Xra, ya)
-    
-    for w in windows:
-        for lam in ridges:
-            # IMPORTANT: Disable global affine to force window-size sensitivity testing
-            pds = PDSTransfer(window=w, ridge=lam, use_global_affine=False).fit(X_ref, X_site)
-            X_trans = pds.transform(X_test)
-            err = rmsep(y_test, master.predict(X_trans))
-            results.append({"w": w, "lambda": lam, "RMSEP": err})
-            
+    for w in [16, 32, 64]:
+        for lam in [1e-4, 1e-3, 1e-2, 1e-1, 1.0]:
+            pds = PDSTransfer(window=w, ridge=lam, use_global_affine=False).fit(Xra[:40], Xrb[:40])
+            X_t = pds.transform(Xrb[40:])
+            master = instantiate_model("PLSModel", n_components=10).fit(Xra, ya)
+            err = rmsep(yb[40:], master.predict(X_t))
+            results.append({"w": w, "lambda": lam, "RMSEP": float(err)})
     return pd.DataFrame(results)
 
-def run_fl_sensitivity():
-    """Combined Clip and Round sensitivity."""
+def run_fl_grid():
     results = []
-    clips = [0.5, 1.0, 2.0]
-    rounds_list = [1, 5, 10]
-    epsilons = [0.1, 1.0, 10.0]
-    
-    # Use 20% pooled data for validation
+    # Test C and R simultaneously under moderate DP (eps=1.0)
     split = int(len(Xra) * 0.8)
     X_val = np.vstack([Xra[split:], Xrb[split:]])
     y_val = np.hstack([ya[split:], yb[split:]])
-    eval_fn = make_eval_fn(X_val, y_val)
+    clients = [{"X": Xra[:split], "y": ya[:split]}, {"X": Xrb[:split], "y": yb[:split]}]
     
-    clients = [
-        {"X": Xra[:split], "y": ya[:split]},
-        {"X": Xrb[:split], "y": yb[:split]}
-    ]
-    
-    for C in clips:
-        for eps in epsilons:
-            for R in rounds_list:
-                orch = FederatedOrchestrator()
-                res = orch.run_rounds(
-                    clients=clients,
-                    model=instantiate_model("PLSModel", n_components=5),
-                    rounds=R,
-                    algo="fedavg",
-                    dp_config={"delta": 1e-5, "target_epsilon": eps},
-                    clip_norm=C,
-                    eval_fn=eval_fn,
-                    seed=42
-                )
-                final_rmsep = res["logs"][-1].get("rmsep")
-                # Handle None values in clip_fraction log
-                clip_fracs = [l.get("clip_fraction") for l in res["logs"]]
-                clean_clip_fracs = [f if f is not None else 0.0 for f in clip_fracs]
-                avg_clip_frac = np.mean(clean_clip_fracs)
-                
-                results.append({
-                    "C": C, 
-                    "eps": eps, 
-                    "rounds": R, 
-                    "RMSEP": final_rmsep,
-                    "avg_clipped_fraction": avg_clip_frac
-                })
-            
+    for C in [0.5, 1.0, 2.0]:
+        for R in [1, 5, 10]:
+            orch = FederatedOrchestrator()
+            res = orch.run_rounds(
+                clients=clients, model=instantiate_model("PLSModel", n_components=5),
+                rounds=R, algo="fedavg", dp_config={"delta": 1e-5, "target_epsilon": 1.0},
+                clip_norm=C, eval_fn=lambda m: {"rmsep": rmsep(y_val, m.predict(X_val))}, seed=42
+            )
+            final = res["logs"][-1]
+            results.append({
+                "C": C, "rounds": R, "RMSEP": final.get("rmsep"),
+                "avg_clip_frac": np.mean([l.get("clip_fraction", 0) or 0 for l in res["logs"]])
+            })
     return pd.DataFrame(results)
 
-print("Running Fixed PDS Grid...")
+print("Regenerating grids...")
 df_pds = run_pds_grid()
+df_fl = run_fl_grid()
 df_pds.to_csv(output_dir / "hparam_pds_grid.csv", index=False)
-
-print("Running Enhanced FL Sensitivity (Clips & Rounds)...")
-df_fl = run_fl_sensitivity()
 df_fl.to_csv(output_dir / "hparam_fl_grid.csv", index=False)
-
-print("\n--- RESULTS PREVIEW (PDS) ---")
-print(df_pds.groupby('w')['RMSEP'].mean())
-
-print("\n--- RESULTS PREVIEW (ROUNDS) ---")
-# filter for typical DP setting to show convergence
-df_sub = df_fl[df_fl['C']==1.0]
-print(df_sub.groupby('rounds')['RMSEP'].mean())
-
-print("\nAnalysis complete.")
+print("Done.")
