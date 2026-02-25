@@ -19,6 +19,12 @@ class PDSTransfer:
 
     Learns blockwise linear maps with optional overlap and ridge regularization.
     Provides diagnostics (condition numbers and block errors).
+
+    Hyperparameter Rationale:
+    - window (default 16): Captures local spectral features; expanded to 32 in 
+      primary experiments to match NIR vibrational band resolution (~16 nm).
+    - ridge (default 1e-6): Baseline stability; set to 1e-1 in primary 
+      benchmarks to handle high spectral collinearity during transfer.
     """
 
     def __init__(self, window: int = 16, overlap: int = 0, ridge: float = 1e-6, use_global_affine: bool = True) -> None:
